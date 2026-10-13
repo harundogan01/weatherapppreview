@@ -1,10 +1,10 @@
 <template>
-    <v-card theme="dark" class="card-container">
+    <v-card :theme="currentTheme" class="card-container theme-transition">
         <div class="inner-container">
             <div class="col-xs-10 col-sm-8 col-md-5 col-lg-5 col-xs-5 ma-10 justify-center autoselect align-center text-center">
                 <v-autocomplete v-model="selectedItem" label="Specific Location" clearable :loading="isLoading"
                     item-title="name" item-value="id" @keydown.enter="getSearchedData($event.target.value)"
-                    :search-input.sync="search" :items="search_results" theme="dark" :getSelectedData="getSelectedData"
+                    :search-input.sync="search" :items="search_results" :theme="currentTheme" :getSelectedData="getSelectedData"
                     placeholder="Enter the place where you want to access the location information"
                     variant="outlined"></v-autocomplete>
                 <v-alert v-if="!selectedItem" type="info" color="blue">
@@ -12,24 +12,26 @@
                     and press Enter.
                 </v-alert>
             </div>
-            <v-card-title
-                v-if="(items_one.length > 0 && items_two.length > 0) || (search_results.length > 0 && selectedItem)"
-                class="text-center justify-center">
-                <p>{{ area !== city ? `${area} , ${city} , ${country}` : `${city} , ${country}` }} Current Weather</p>
-            </v-card-title>
-            <p class="text-center justify-center"
-                v-if="(items_one.length > 0 && items_two.length > 0) || (search_results.length > 0 && selectedItem)">
-                Last Update Time: {{ last_update_time }}
-            </p>
-            <v-tabs centered theme="dark" v-model="tabs"
-                v-if="(items_one.length > 0 && items_two.length > 0) || (search_results.length > 0 && selectedItem)">
-                <v-tab :value="1">Current Weather</v-tab>
-                <v-tab :value="2">Three Day Weather Forecast</v-tab>
-            </v-tabs>
+            <v-fade-transition>
+                <div v-if="(items_one.length > 0 && items_two.length > 0) || (search_results.length > 0 && selectedItem)" class="w-100 text-center">
+                        <v-card-title class="text-center justify-center">
+                            <p>{{ area !== city ? `${area} , ${city} , ${country}` : `${city} , ${country}` }} Current Weather</p>
+                        </v-card-title>
+                        
+                        <p class="text-center justify-center">
+                            Last Update Time: {{ last_update_time }}
+                        </p>
+                        
+                        <v-tabs centered :theme="currentTheme" v-model="tabs">
+                            <v-tab :value="1">Current Weather</v-tab>
+                            <v-tab :value="2">Three Day Weather Forecast</v-tab>
+                        </v-tabs>
+                    </div>
+            </v-fade-transition>
             <v-tabs-window v-model="tabs">
                 <v-tabs-window-item :value="1">
                     <v-card-text>
-                        <v-list class="text-center">
+                        <v-list class="text-center bg-transparent">
                             <v-item-group class="leftBlock d-inline-block col-xs-6 col-sm-6 col-md-5 col-lg-5 col-xl-6"
                                 color="grey">
                                 <v-list-item v-for="(item, i) in items_one" :key="i" :value="item">
@@ -104,7 +106,7 @@
 import moment from 'moment'
 import { useGeoLocation } from '../composables/useGeoLocation'
 import '@mdi/font/css/materialdesignicons.css'
-import { computed, onBeforeMount, watch, ref } from 'vue'
+import { computed, onBeforeMount, watch, ref, onUnmounted } from 'vue'
 import axios from 'axios'
 
 const { coordinates, ready } = useGeoLocation()
@@ -124,8 +126,26 @@ const selectedItem = ref(null)
 const latAndLonBySearchedLocation = ref(null)
 const tabs = ref(null)
 
+const currentTheme = ref('light')
+
+const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme:dark)')
+
+const handleThemeChange = (e) => {
+  if (e.matches)
+    currentTheme.value = 'dark'
+  else
+    currentTheme.value = 'light'
+}
+
 onBeforeMount(() => {
-    getUserLocation()
+  getUserLocation()
+  handleThemeChange(darkModeMediaQuery)
+})
+
+darkModeMediaQuery.addEventListener('change', handleThemeChange)
+
+onUnmounted(() => {
+  darkModeMediaQuery.removeEventListener('change', handleThemeChange)
 })
 
 const getSelectedData = computed(() => {
@@ -141,13 +161,13 @@ const getSearchedData = async val => {
         search_results.value = []
     else {
         isLoading.value = true
-        const response = await axios.get(import.meta.env.VITE_BASE_URL + 'search.json', {
+        const response = await axios.get('/.netlify/functions/get-weather', {
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
             },
             params: {
-                key: "265fce76a01d4f5696082647252001",
-                q: val
+              endpoint: 'search.json',
+              q: val
             }
         })
         const resp = await response.data
@@ -161,7 +181,6 @@ const getSearchedData = async val => {
                 lon: val.lon
             }
         })
-        console.log("SR: " ,search_results.value)
         isLoading.value = false
     }
 }
@@ -172,12 +191,12 @@ const getUserLocation = async (param) => {
             try {
                 const latitude = coords.lat
                 const longitude = coords.lng
-                const response = await axios.get(import.meta.env.VITE_BASE_URL + 'forecast.json', {
+                const response = await axios.get('/.netlify/functions/get-weather', {
                     headers: { 'Content-Type': 'application/json' },
                     params: {
-                        key: "265fce76a01d4f5696082647252001",
-                        q: latitude + ',' + longitude,
-                        days: 3
+                      endpoint: 'forecast.json',
+                      q: latitude + ',' + longitude,
+                      days: 3
                     }
                 });
 
@@ -217,7 +236,7 @@ const getUserLocation = async (param) => {
                 weatherStatus.value = resp.current.condition.text;
 
             } catch (error) {
-                console.log('API isteği sırasında hata oluştu:', error);
+                console.log('Something went wrong when API request has been processed:', error);
             }
         })
     }
@@ -225,14 +244,14 @@ const getUserLocation = async (param) => {
         forecast.value = []
         items_one.value = []
         items_two.value = []
-        const response = await axios.get(import.meta.env.VITE_BASE_URL + 'forecast.json', {
+        const response = await axios.get('/.netlify/functions/get-weather', {
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
             },
             params: {
-                key: "265fce76a01d4f5696082647252001",
-                q: param,
-                days: 3
+              endpoint: 'forecast.json',
+              q: param,
+              days: 3
             }
         })
         const resp = await response.data
@@ -277,6 +296,35 @@ watch(search, (newVal) => {
 </script>
 
 <style scoped>
+/* 1. Tarayıcıya Vuetify'ın arka plan rengini yumuşatarak canlandırabileceğini öğretiyoruz */
+@property --v-theme-surface {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ffffff;
+}
+
+@property --v-theme-on-surface {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #000000;
+}
+
+/* 2. Geçiş efektini hem standart CSS özelliklerine hem de Vuetify değişkenlerine bağlıyoruz */
+.theme-transition {
+    transition: 
+        background-color 0.6s ease, 
+        color 0.6s ease, 
+        border-color 0.6s ease, 
+        box-shadow 0.6s ease,
+        --v-theme-surface 0.6s ease, /* Vuetify kart arka plan rengi geçişi */
+        --v-theme-on-surface 0.6s ease !important; /* Vuetify yazı rengi geçişi */
+}
+
+/* Mevcut diğer CSS kurallarınız */
+.w-100 {
+    width: 100%;
+}
+
 .card-container {
     height: 100%;
     position: relative;
@@ -290,11 +338,9 @@ watch(search, (newVal) => {
         .autoselect {
             width: 68%;
         }
-        :deep(.v-window) {
-            .v-window-item:last-child {
-                .d-flex {
-
-                }
+        :deep(.v-slide-group__container) {
+            .v-slide-group__content {
+                justify-content: center;
             }
         }
     }
