@@ -2,7 +2,7 @@
     <v-card :theme="currentTheme" class="card-container theme-transition">
         <div class="inner-container">
             <div class="col-xs-10 col-sm-8 col-md-5 col-lg-5 col-xs-5 ma-10 justify-center autoselect align-center text-center">
-                <v-autocomplete v-model="selectedItem" label="Specific Location" clearable :loading="isLoading"
+                <v-autocomplete autofocus v-model="selectedItem" label="Specific Location" clearable :loading="isLoading"
                     item-title="name" item-value="id" @keydown.enter="getSearchedData($event.target.value)"
                     :search-input.sync="search" :items="search_results" :theme="currentTheme" :getSelectedData="getSelectedData"
                     placeholder="Enter the place where you want to access the location information"
